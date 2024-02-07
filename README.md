@@ -4,13 +4,13 @@ Install python and node js.
 ## Setup
 - Fill proxies.txt in given format.
 - Open terminal/cmd in folder. 
-- pip install -r requirements.txt
-- npm i
+- `pip install -r requirements.txt`
+- `npm i`
 
 ## Run
-- node run.js account_list.txt BROWSER-COUNT PAGE-COUNT
+- `node run.js account_list.txt BROWSER-COUNT PAGE-COUNT`
   or
-- node run.js combo_list.txt
+- `node run.js combo_list.txt`
   or
-- node run.js combo_list.txt 2 10
+- `node run.js combo_list.txt 2 10`
   

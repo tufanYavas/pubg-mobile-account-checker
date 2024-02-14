@@ -26,6 +26,17 @@ if (!args[0]) {
 }
 
 checkPythonInstallationSync();
+folderChecker('tmp');
+
+function folderChecker(folderName) {
+    try {
+        if (!fs.existsSync(folderName)){
+            fs.mkdirSync(folderName);
+        }
+    } catch (error) {
+        console.error(error);
+    }
+}
 
 function checkPythonInstallationSync() {
     const python3Check = spawnSync('python3', ['--version']);
